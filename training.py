@@ -1,17 +1,33 @@
-from keras import backend as K
-from keras.optimizers import Adadelta
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+#from keras import backend as K
+#from keras.optimizers import Adadelta
+#from keras.callbacks import EarlyStopping, ModelCheckpoint
+import os,sys
+from tensorflow.keras import backend as K
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adadelta
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from Image_Generator import TextImageGenerator
 from Model import get_Model
 from parameter import *
 K.set_learning_phase(0)
+
+
+ROOT_DIR = os.getcwd()
+sys.path.append(ROOT_DIR)
+
+
+logs_dir = os.path.join(ROOT_DIR,'logs')
+#로그 디렉토리 만들기
+if not os.path.isdir(logs_dir):
+	os.mkdir(logs_dir) 
 
 # # Model description and training
 
 model = get_Model(training=True)
 
 try:
-    model.load_weights('LSTM+BN4--26--0.011.hdf5')
+   # model.load_weights('LSTM+BN4--26--0.011.hdf5')
     print("...Previous weight data...")
 except:
     print("...New weight data...")
@@ -27,8 +43,11 @@ tiger_val.build_data()
 
 ada = Adadelta()
 
+tf.config.run_functions_eagerly(True)
+
 early_stop = EarlyStopping(monitor='loss', min_delta=0.001, patience=4, mode='min', verbose=1)
-checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_loss:.3f}.hdf5', monitor='loss', verbose=1, mode='min', period=1)
+#checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_loss:.3f}.hdf5', monitor='loss', verbose=1, mode='min', period=1)
+checkpoint = ModelCheckpoint(filepath=os.path.join(logs_dir,'LSTM+BN5--{epoch:02d}--{loss:.3f}.hdf5'), monitor='loss', verbose=1, mode='auto', period=1,save_best_only=True)
 # the loss calc occurs elsewhere, so use a dummy lambda func for the loss
 model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=ada)
 
