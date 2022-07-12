@@ -31,13 +31,17 @@ class TextImageGenerator:
     def build_data(self):
         print(self.n, " Image Loading start...")
         for i, img_file in enumerate(self.img_dir):
-            img = cv2.imread(self.img_dirpath + img_file, cv2.IMREAD_GRAYSCALE)
-            img = cv2.resize(img, (self.img_w, self.img_h))
+            full_path = self.img_dirpath + img_file
+            img_array = np.fromfile(full_path, np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_GRAYSCALE)
+            #img = cv2.imread(self.img_dirpath + img_file, cv2.IMREAD_GRAYSCALE)
+            #img = cv2.resize(img, (self.img_w, self.img_h))
             img = img.astype(np.float32)
             img = (img / 255.0) * 2.0 - 1.0     #* 2.0 - 1.0 이건 뭘까?  0 ~ 255의 값을 -1에서 1사이의 값으로 변환한다.
 
             self.imgs[i, :, :] = img            #self.imgs는 디렉토리에 있는 영상 만큼의 영상을 갖는 배열이고... [[영상1],[영상2],[영상3],[영상4]]
-            self.texts.append(img_file[0:-4])  ##파일이름에서 .jpg를 뺀것이 정답 text이다. texts도 [[text1],[text2],[text3],[text4]]
+            self.texts.append(img_file.split('_')[1])
+            #self.texts.append(img_file[0:-4])  ##파일이름에서 .jpg를 뺀것이 정답 text이다. texts도 [[text1],[text2],[text3],[text4]]
         print(len(self.texts) == self.n)
         print(self.n, " Image Loading finish...")
 
@@ -51,7 +55,7 @@ class TextImageGenerator:
     def next_batch(self):       ## batch size만큼 가져오기
         while True:
             X_data = np.ones([self.batch_size, self.img_w, self.img_h, 1])     # (bs, 128, 64, 1)
-            Y_data = np.ones([self.batch_size, self.max_text_len])             # (bs, 9)
+            Y_data = np.ones([self.batch_size, self.max_text_len])             # (bs, 9) #max_text_len이 가변 일때 유연하게 동작하기 위한 코드가 필요함.
             input_length = np.ones((self.batch_size, 1)) * (self.img_w // self.downsample_factor - 2)  # (bs, 1) # (self.img_w // self.downsample_factor - 2) : 30
             label_length = np.zeros((self.batch_size, 1))           # (bs, 1)
 

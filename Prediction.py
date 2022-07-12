@@ -4,7 +4,7 @@ import numpy as np
 from Model import get_Model
 from parameter import letters
 import argparse
-from keras import backend as K
+from tensorflow.keras import backend as K
 K.set_learning_phase(0)
 
 Region = {"A": "서울 ", "B": "경기 ", "C": "인천 ", "D": "강원 ", "E": "충남 ", "F": "대전 ",
@@ -45,7 +45,7 @@ def label_to_hangul(label):  # eng -> hangul
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-w", "--weight", help="weight file directory",
-                    type=str, default="Final_weight.hdf5")
+                    type=str, default="LSTM+BN5--13576--0.012.hdf5")
 parser.add_argument("-t", "--test_img", help="Test image directory",
                     type=str, default="./DB/test/")
 args = parser.parse_args()
@@ -68,10 +68,12 @@ letter_total = 0
 letter_acc = 0
 start = time.time()
 for test_img in test_imgs:
-    img = cv2.imread(test_dir + test_img, cv2.IMREAD_GRAYSCALE)
+    full_path = test_dir + test_img
+    img_array = np.fromfile(full_path, np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_GRAYSCALE)
 
     img_pred = img.astype(np.float32)
-    img_pred = cv2.resize(img_pred, (128, 64))
+    #img_pred = cv2.resize(img_pred, (128, 64))
     img_pred = (img_pred / 255.0) * 2.0 - 1.0
     img_pred = img_pred.T
     img_pred = np.expand_dims(img_pred, axis=-1)
@@ -81,15 +83,20 @@ for test_img in test_imgs:
 
     pred_texts = decode_label(net_out_value)
 
-    for i in range(min(len(pred_texts), len(test_img[0:-4]))):
+    #for i in range(min(len(pred_texts), len(test_img[0:-4]))):
+    ground_truth = test_img.split('_')[1]       #입력영상이 xxxx_번호판_xxxx.png 형태라서 번호판만 가져오려고 한 것임.
+    for i in range(min(len(pred_texts), len(ground_truth))):
         if pred_texts[i] == test_img[i]:
             letter_acc += 1
-    letter_total += max(len(pred_texts), len(test_img[0:-4]))
+    #letter_total += max(len(pred_texts), len(test_img[0:-4]))
+    letter_total += max(len(pred_texts), len(ground_truth))
 
-    if pred_texts == test_img[0:-4]:
+    #if pred_texts == test_img[0:-4]:
+    if pred_texts == test_img.split('_')[1]:
         acc += 1
     total += 1
-    print('Predicted: %s  /  True: %s' % (label_to_hangul(pred_texts), label_to_hangul(test_img[0:-4])))
+    print('예상:{0} 정답:{1}'.format(pred_texts,ground_truth))
+    #print('Predicted: %s  /  True: %s' % (label_to_hangul(pred_texts), label_to_hangul(test_img[0:-4])))
     
     # cv2.rectangle(img, (0,0), (150, 30), (0,0,0), -1)
     # cv2.putText(img, pred_texts, (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255),2)
