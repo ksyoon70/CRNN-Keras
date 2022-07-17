@@ -14,3 +14,5 @@ DB/test - 복사본/
 *.png
 
 *.jpg
+
+__pycache__/parameter.cpython-37.pyc
