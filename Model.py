@@ -1,4 +1,7 @@
+import tensorflow as tf
 from keras import backend as K
+from tensorflow.keras.applications.resnet50 import preprocess_input
+from tensorflow.keras.applications.resnet50 import ResNet50
 from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Input, Dense, Activation
 from keras.layers import Reshape, Lambda, BatchNormalization
@@ -18,41 +21,66 @@ def ctc_lambda_func(args):
 
 
 def get_Model(training):
-    input_shape = (img_w, img_h, 1)     # (128, 64, 1)
+    input_shape = (img_w, img_h, 3)     # (128, 64, 1)
 
     # Make Networkw
     inputs = Input(name='the_input', shape=input_shape, dtype='float32')  # (None, 128, 64, 1)
+    
+    # ResNet50 불러오기 -> include_top = False로 바꾸는 것이 포인트
+    base_model = ResNet50(include_top=False, pooling = 'avg' , input_shape = input_shape, weights = 'imagenet')
+    C4 =  base_model.get_layer('conv4_block6_out').output
+    base_model.trainable = False
+    
+    rest50_model = Model(inputs=base_model.input,outputs= C4)
+    
+    rest50_model.summary()
+    
+    
+    for layer in rest50_model.layers:
+        layer.trainable = False
+
+    rest50_model.summary()
+    
+    inner = tf.keras.applications.resnet50.preprocess_input(inputs)
+    
+    inner = rest50_model.output
+    
+
+    #base_model(inputs, training = False)
+
 
     # Convolution layer (VGG)
-    inner = Conv2D(64, (3, 3), padding='same', name='conv1', kernel_initializer='he_normal')(inputs)  # (None, 128, 64, 64)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = MaxPooling2D(pool_size=(2, 2), name='max1')(inner)  # (None,64, 32, 64)
+    # inner = Conv2D(64, (3, 3), padding='same', name='conv1', kernel_initializer='he_normal')(inputs)  # (None, 128, 64, 64)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = MaxPooling2D(pool_size=(2, 2), name='max1')(inner)  # (None,64, 32, 64)
 
-    inner = Conv2D(128, (3, 3), padding='same', name='conv2', kernel_initializer='he_normal')(inner)  # (None, 64, 32, 128)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = MaxPooling2D(pool_size=(2, 2), name='max2')(inner)  # (None, 32, 16, 128)
+    # inner = Conv2D(128, (3, 3), padding='same', name='conv2', kernel_initializer='he_normal')(inner)  # (None, 64, 32, 128)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = MaxPooling2D(pool_size=(2, 2), name='max2')(inner)  # (None, 32, 16, 128)
 
-    inner = Conv2D(256, (3, 3), padding='same', name='conv3', kernel_initializer='he_normal')(inner)  # (None, 32, 16, 256)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = Conv2D(256, (3, 3), padding='same', name='conv4', kernel_initializer='he_normal')(inner)  # (None, 32, 16, 256)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = MaxPooling2D(pool_size=(1, 2), name='max3')(inner)  # (None, 32, 8, 256)
+    # inner = Conv2D(256, (3, 3), padding='same', name='conv3', kernel_initializer='he_normal')(inner)  # (None, 32, 16, 256)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = Conv2D(256, (3, 3), padding='same', name='conv4', kernel_initializer='he_normal')(inner)  # (None, 32, 16, 256)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = MaxPooling2D(pool_size=(1, 2), name='max3')(inner)  # (None, 32, 8, 256)
 
-    inner = Conv2D(512, (3, 3), padding='same', name='conv5', kernel_initializer='he_normal')(inner)  # (None, 32, 8, 512)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = Conv2D(512, (3, 3), padding='same', name='conv6')(inner)  # (None, 32, 8, 512)
-    inner = BatchNormalization()(inner)
-    inner = Activation('relu')(inner)
-    inner = MaxPooling2D(pool_size=(1, 2), name='max4')(inner)  # (None, 32, 4, 512)
+    # inner = Conv2D(512, (3, 3), padding='same', name='conv5', kernel_initializer='he_normal')(inner)  # (None, 32, 8, 512)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = Conv2D(512, (3, 3), padding='same', name='conv6')(inner)  # (None, 32, 8, 512)
+    # inner = BatchNormalization()(inner)
+    # inner = Activation('relu')(inner)
+    # inner = MaxPooling2D(pool_size=(1, 2), name='max4')(inner)  # (None, 32, 4, 512)
 
-    inner = Conv2D(512, (2, 2), padding='same', kernel_initializer='he_normal', name='con7')(inner)  # (None, 32, 4, 512)
+    inner = Conv2D(2048, (2, 2), padding='same', kernel_initializer='he_normal', name='con7')(inner)  # (None, 32, 4, 512)
     inner = BatchNormalization()(inner)
     inner = Activation('relu')(inner)
+    
+
 
     # CNN to RNN
     inner = Reshape(target_shape=((inner.shape[1], inner.shape[2]*inner.shape[3])), name='reshape')(inner)
@@ -87,7 +115,7 @@ def get_Model(training):
     loss_out = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc')([y_pred, labels, input_length, label_length]) #(None, 1)
 
     if training:
-        return Model(inputs=[inputs, labels, input_length, label_length], outputs=loss_out)
+        return Model(inputs=[rest50_model.inputs, labels, input_length, label_length], outputs=loss_out)
     else:
         return Model(inputs=[inputs], outputs=y_pred)
 

@@ -40,7 +40,9 @@ class TextImageGenerator:
             img = (img / 255.0) * 2.0 - 1.0     #* 2.0 - 1.0 이건 뭘까?  0 ~ 255의 값을 -1에서 1사이의 값으로 변환한다.
 
             self.imgs[i, :, :] = img            #self.imgs는 디렉토리에 있는 영상 만큼의 영상을 갖는 배열이고... [[영상1],[영상2],[영상3],[영상4]]
-            self.texts.append(img_file.split('_')[1])
+            Glabel = img_file.split('_')[1]
+            Glabel = Glabel[0:-4]
+            self.texts.append(Glabel)
             #self.texts.append(img_file[0:-4])  ##파일이름에서 .jpg를 뺀것이 정답 text이다. texts도 [[text1],[text2],[text3],[text4]]
         print(len(self.texts) == self.n)
         print(self.n, " Image Loading finish...")

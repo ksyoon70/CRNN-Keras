@@ -10,7 +10,7 @@ num_classes = len(letters) + 1
 
 #img_w, img_h = 128, 64
 #가지고 있는 영상이 SSD 320x320 이므로 수정함.
-img_w, img_h = 320, 320
+img_w, img_h = 224, 224
 
 # Network parameters
 batch_size = 16
@@ -18,4 +18,4 @@ val_batch_size = 16
 
 downsample_factor = 4
 #max_text_len = 9
-max_text_len = 7 #한줄번호판의 최대길이는 7글자 이므로 약간 수정함.
+max_text_len = 1 #한줄번호판의 최대길이는 7글자 이므로 약간 수정함.
