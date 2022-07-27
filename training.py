@@ -27,7 +27,7 @@ if not os.path.isdir(logs_dir):
 model = get_Model(training=True)
 
 try:
-   # model.load_weights('LSTM+BN4--26--0.011.hdf5')
+    model.load_weights('LSTM+BN5--576--2.517.hdf5')
     print("...Previous weight data...")
 except:
     print("...New weight data...")
@@ -54,7 +54,7 @@ model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=ada)
 # captures output of softmax so we can decode the output during visualization
 model.fit_generator(generator=tiger_train.next_batch(),
                     steps_per_epoch=int(tiger_train.n / batch_size),
-                    epochs=50000,
+                    epochs=2000,
                     callbacks=[checkpoint],
                     validation_data=tiger_val.next_batch(),
                     validation_steps=int(tiger_val.n / val_batch_size))

@@ -45,7 +45,7 @@ def label_to_hangul(label):  # eng -> hangul
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-w", "--weight", help="weight file directory",
-                    type=str, default="LSTM+BN5--13576--0.012.hdf5")
+                    type=str, default="LSTM+BN5--749--0.515.hdf5")
 parser.add_argument("-t", "--test_img", help="Test image directory",
                     type=str, default="./DB/test/")
 args = parser.parse_args()
@@ -85,6 +85,7 @@ for test_img in test_imgs:
 
     #for i in range(min(len(pred_texts), len(test_img[0:-4]))):
     ground_truth = test_img.split('_')[1]       #입력영상이 xxxx_번호판_xxxx.png 형태라서 번호판만 가져오려고 한 것임.
+    ground_truth = ground_truth[0:-4]
     for i in range(min(len(pred_texts), len(ground_truth))):
         if pred_texts[i] == test_img[i]:
             letter_acc += 1

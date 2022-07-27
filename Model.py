@@ -79,6 +79,7 @@ def get_Model(training):
     y_pred = Activation('softmax', name='softmax')(inner)
 
     labels = Input(name='the_labels', shape=[max_text_len], dtype='float32') # (None ,8)
+    #input_length = Input(name='input_length', shape=[int(img_w/downsample_factor -2)], dtype='int64')     # (None, 1)
     input_length = Input(name='input_length', shape=[1], dtype='int64')     # (None, 1)
     label_length = Input(name='label_length', shape=[1], dtype='int64')     # (None, 1)
 

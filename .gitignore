@@ -15,4 +15,6 @@ DB/test - 복사본/
 
 *.jpg
 
-__pycache__/parameter.cpython-37.pyc
+__pycache__/
+
+.spyproject/
