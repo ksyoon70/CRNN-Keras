@@ -37,7 +37,12 @@ if not os.path.isdir(src_dir):
 if not os.path.isdir(dst_dir):
         os.mkdir(dst_dir)
 
-total_files = len(os.listdir(src_dir))
+image_ext = ['jpg','JPG']
+files = [fn for fn in os.listdir(src_dir)
+                  if any(fn.endswith(ext) for ext in image_ext)]
+
+
+total_files = len(files)
 
 SAMPLE_IMG_COUNT = int(total_files*ratio)
 
@@ -46,7 +51,6 @@ print('취득 이미지 갯수: {0} sample 수 : {1}'.format(total_files,SAMPLE_
 proc_num = 0
 
 if total_files >  SAMPLE_IMG_COUNT :
-    files = os.listdir(src_dir)
     random.shuffle(files)
     sample_files = [ files[i] for i in range(SAMPLE_IMG_COUNT)]
     for file in sample_files:
