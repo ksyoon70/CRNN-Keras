@@ -19,3 +19,9 @@ DB/
 __pycache__/
 
 .spyproject/
+
+trained/
+
+*.h5
+
+*.bak
