@@ -38,7 +38,8 @@ MODEL_PATH = 'LSTM_ResNet_epoch_20220902-142523_val_loss_0.2836.h5'
 WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_ResNet50_20220902-141834_weights_epoch_052_val_loss_0.223.h5')
 label_dir = os.path.join(ROOT_DIR,'DB','train') #여기는 변경하지 않는다.
 src_dir = os.path.join(ROOT_DIR,'DB','test')
-SHOW_IMAGE = True  #이미지를 보여 줄지여부
+SHOW_IMAGE = False  #이미지를 보여 줄지여부
+RECOG_THRESH_HOLD = 0.9
 #---------------------------------------------
 
 def get_model_path(model_type, backbone="resnet50"):
@@ -207,11 +208,14 @@ for batch in validation_dataset:
         if pred_text == '[UNK]' :
             fail_count += 1
         else :
-            recog_count += 1
-            if pred_text == gt_text[ix] :
-                true_recog_count += 1
-            else :
-                false_recog_count += 1
+            if probs[ix] >= RECOG_THRESH_HOLD :
+                recog_count += 1
+                if pred_text == gt_text[ix] :
+                    true_recog_count += 1
+                else :
+                    false_recog_count += 1
+            else:
+                fail_count += 1
     
     #이미지를 보여 준다.
     if SHOW_IMAGE :
@@ -231,11 +235,13 @@ for batch in validation_dataset:
             
 end_time = time.time()         
 print("수행시간: {:.2f}".format(end_time - start_time))
+print("총샘플수: {}".format(total_test_files))
 print("건당 수행시간 : {:.2f}".format((end_time - start_time)/total_test_files))             
-print('인식률: {:}'.format(recog_count) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
-print('정인식: {:}'.format(true_recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
-print('오인식: {:}'.format(false_recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
-print('인식실패: {}'.format(fail_count) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
+print('인식률: {:}/{}'.format(recog_count,total_test_files) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
+print('인식한것중 정인식: {:}/{}'.format(true_recog_count,recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
+print('인식한것중 오인식: {:}/{}'.format(false_recog_count,recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
+print('인식실패: {}/{}'.format(fail_count,total_test_files) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
+print('전체샘플중 정인식률: {}/{}'.format(true_recog_count,total_test_files) +'  ({:.2f})'.format(true_recog_count*100/total_test_files) + ' %')
 
 
 
