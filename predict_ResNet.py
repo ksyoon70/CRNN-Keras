@@ -33,12 +33,12 @@ img_width = 224
 img_height = 224
 batch_size = 32
 EPOCHS =  100
-MODEL_PATH = 'LSTM_epoch_20220901-163152_val_loss_0.4244.h5'
+MODEL_PATH = 'LSTM_ResNet_epoch_20220902-001529_val_loss_0.3901.h5'
 #WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_crnn_20220901-123614_weights_epoch_025_val_loss_0.314.h5')
-WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_ResNet50_20220901-162838_weights_epoch_015_val_loss_0.377.h5')
+WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_ResNet50_20220902-001243_weights_epoch_010_val_loss_0.277.h5')
 label_dir = os.path.join(ROOT_DIR,'DB','train') #여기는 변경하지 않는다.
 src_dir = os.path.join(ROOT_DIR,'DB','train')
-SHOW_IMAGE = False  #이미지를 보여 줄지여부
+SHOW_IMAGE = True  #이미지를 보여 줄지여부
 #---------------------------------------------
 
 def get_model_path(model_type, backbone="resnet50"):
@@ -165,10 +165,13 @@ def decode_batch_predictions(pred):
     ]
     # Iterate over the results and get back the text
     output_text = []
-    for res in results:
-        res = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
-        output_text.append(res)
-    return output_text
+    accs = []
+    for ix, res in enumerate(results):
+        accs.append(pred[ix][0][res])
+        ch = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
+        output_text.append(ch)
+        
+    return output_text,accs
 
 
 start_time = time.time() # strat time
@@ -179,7 +182,7 @@ fail_count = 0
 false_recog_count = 0  #오인식 카운트
 true_recog_count = 0
 
-for batch in validation_dataset:
+for batch in validation_dataset: #.take(3):
     batch_images = batch['image']
     GT_labels = batch['label']
     
@@ -189,7 +192,7 @@ for batch in validation_dataset:
         gt_text.append(res)
 
     preds = prediction_model.predict(batch_images)
-    pred_texts = decode_batch_predictions(preds)
+    pred_texts, accs = decode_batch_predictions(preds)
     
     batch_size = batch_images.shape[0]
     
@@ -208,13 +211,14 @@ for batch in validation_dataset:
         batch_images_show = batch_images/255
         _, axes = plt.subplots(8, 4, figsize=(16, 12))
     
-        for img, text, ax in zip(batch_images_show, pred_texts, axes.flatten()):
+        for img, text, acc, ax in zip(batch_images_show, pred_texts, accs, axes.flatten()):
             img = img.numpy().squeeze()
             #img = img.T
             img = np.swapaxes(img,0,1)
     
             ax.imshow(img, cmap='gray')
-            ax.set_title(text)
+            text_str = '{}  {:.2f}%'.format(text,acc*100)
+            ax.set_title(text_str)
             ax.set_axis_off()
             
 end_time = time.time()         

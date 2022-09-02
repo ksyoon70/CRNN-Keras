@@ -55,24 +55,25 @@ def get_Model(training,categories_len, img_shape):
          layer.trainable = False 
     
     inner = base_model.get_layer(name='conv5_block1_2_relu').output     
-    #inner = base_model.get_layer(name='avg_pool').output
+    #inner = base_model.get_layer(name='conv4_block6_2_relu').output
   
 
     # CNN to RNN
     lastFilterLayer = inner.shape[3]
+    print('Last Layer depth {}'.format(lastFilterLayer))
     inner = Reshape(target_shape=((inner.shape[1], inner.shape[2]*inner.shape[3])), name='reshape')(inner)
     #inner = layers.Dropout(0.3)(inner)
-    inner = Dense(lastFilterLayer, activation='relu', kernel_initializer='he_normal', name='dense1')(inner)  # (None, 32, 64)
+    inner = Dense(int(lastFilterLayer/2), activation='relu', kernel_initializer='he_normal', name='dense1')(inner)  # (None, 32, 64)
 
-    inner = layers.Dropout(0.3)(inner)  # drop out 추가
+    inner = layers.Dropout(0.6)(inner)  # drop out 추가
     #inner = Dense(lastFilterLayer, activation='relu', kernel_initializer='he_normal', name='dense1-1')(inner)
     # RNN layer
     # RNNs
     #inner = layers.Bidirectional(layers.LSTM(lastFilterLayer, return_sequences=True, dropout=0.25))(inner)
     #inner = layers.Bidirectional(layers.LSTM(lastFilterLayer, return_sequences=True, dropout=0.25))(inner)
     
-    inner = layers.Bidirectional(layers.LSTM(lastFilterLayer*2, return_sequences=True))(inner)
-    inner = layers.Bidirectional(layers.LSTM(int(lastFilterLayer), return_sequences=True))(inner)
+    inner = layers.Bidirectional(layers.LSTM(int(lastFilterLayer/2), return_sequences=True))(inner)
+    inner = layers.Bidirectional(layers.LSTM(int(lastFilterLayer/2), return_sequences=True))(inner)
 
 
     # transforms RNN output to character activations:

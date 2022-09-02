@@ -29,35 +29,24 @@ rc('font', family=font)
 class_str = 'char'
 img_width = 224
 img_height = 224
-batch_size = 64
+batch_size = 32
 EPOCHS =  100
 #---------------------------------------------
 
 
 
 
-def makeGrey3DImage(src_img, label):
+def makeGrey3DImage(param):
+
 
     
-    # src_img = src_img_tensor.numpy()
-    # nchannels = 3
-    # img_height = src_img.shape[0]
-    # img_width = src_img.shape[1]
     
-    # new_img = np.zeros([img_width,img_height,nchannels])
+    img = param['image']
+    label = param['label']
     
-    # new_img[:,:,0] = (src_img[:,:,0] + src_img[:,:,1] + src_img[:,:,2])/3/255
-    # new_img[:,:,1] = (src_img[:,:,0] + src_img[:,:,1] + src_img[:,:,2])/3/255
-    # new_img[:,:,2] = (src_img[:,:,0] + src_img[:,:,1] + src_img[:,:,2])/3/255
-    
-    src_img[:,:,0] = (src_img[:,:,0]*0.2126 + src_img[:,:,1]* 0.7152 + src_img[:,:,2]* 0.0722)
-    # src_img[:,:,1] = (src_img[:,:,0]*0.2126 + src_img[:,:,1]* 0.7152 + src_img[:,:,2]* 0.0722)
-    # src_img[:,:,2] = (src_img[:,:,0]*0.2126 + src_img[:,:,1]* 0.7152 + src_img[:,:,2]* 0.0722)
+    param['image'] = tf.image.rgb_to_yiq(img)
 
-    
-    #src_img_tensor = tf.convert_to_tensor(new_img,dtype=tf.float32)
-
-    return src_img , label
+    return param
 
 def get_model_path(model_type, backbone="resnet50"):
     """Generating model path from model_type value for save/load model weights.
@@ -145,7 +134,7 @@ num_to_char = layers.experimental.preprocessing.StringLookup(
 #     plt.imshow(preview['image'].numpy().squeeze())
 #     plt.show()
 
-x_train, x_val, y_train, y_val = train_test_split(imgs, labels, test_size=0.3, random_state=2021)
+x_train, x_val, y_train, y_val = train_test_split(imgs, labels, test_size=0.2, random_state=2021)
 
 
 print('train: x_tain: {} y_train: {}'.format(len(x_train), len(y_train)))
@@ -164,6 +153,13 @@ train_dataset = (
     .shuffle(len(x_train)*2)
 )
 
+
+# train_dataset = (
+#     train_dataset.map(
+#        lambda x : makeGrey3DImage(x)
+#     )
+
+# )
 
 
 validation_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
