@@ -33,11 +33,11 @@ img_width = 224
 img_height = 224
 batch_size = 32
 EPOCHS =  100
-MODEL_PATH = 'LSTM_ResNet_epoch_20220902-001529_val_loss_0.3901.h5'
+MODEL_PATH = 'LSTM_ResNet_epoch_20220902-142523_val_loss_0.2836.h5'
 #WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_crnn_20220901-123614_weights_epoch_025_val_loss_0.314.h5')
-WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_ResNet50_20220902-001243_weights_epoch_010_val_loss_0.277.h5')
+WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_ResNet50_20220902-141834_weights_epoch_052_val_loss_0.223.h5')
 label_dir = os.path.join(ROOT_DIR,'DB','train') #여기는 변경하지 않는다.
-src_dir = os.path.join(ROOT_DIR,'DB','train')
+src_dir = os.path.join(ROOT_DIR,'DB','test')
 SHOW_IMAGE = True  #이미지를 보여 줄지여부
 #---------------------------------------------
 
@@ -112,7 +112,8 @@ for filename in label_list:
 
 print('GT 검지 레이블 갯수: {} max label length {}'.format(len(gtlabels), max_length))
 
-characters = set(''.join(gtlabels))
+#characters = set(''.join(gtlabels))
+characters = sorted(list(set([char for label in gtlabels for char in label])))
 #print(characters)
 
 char_to_num = layers.experimental.preprocessing.StringLookup(
@@ -149,12 +150,13 @@ validation_dataset = (
 # Get the model
 # model = get_Model(training=False,categories_len=len(char_to_num.get_vocabulary()),img_shape=[img_width,img_height,1])
 # model.summary()
-model = tf.keras.models.load_model(MODEL_PATH, custom_objects={'CTCLayer':CTCLayer})
-model.load_weights(WEIGHT_PATH)
+#model = tf.keras.models.load_model(MODEL_PATH, custom_objects={'CTCLayer':CTCLayer})
+prediction_model = tf.keras.models.load_model(MODEL_PATH)
+prediction_model.load_weights(WEIGHT_PATH)
 
-prediction_model = keras.models.Model(
-  model.get_layer(name='image').input, model.get_layer(name='dense2').output
-)
+# prediction_model = keras.models.Model(
+#   model.get_layer(name='image').input, model.get_layer(name='dense2').output
+# )
 
 
 def decode_batch_predictions(pred):
@@ -182,7 +184,8 @@ fail_count = 0
 false_recog_count = 0  #오인식 카운트
 true_recog_count = 0
 
-for batch in validation_dataset: #.take(3):
+#for batch in validation_dataset.take(3):
+for batch in validation_dataset:
     batch_images = batch['image']
     GT_labels = batch['label']
     

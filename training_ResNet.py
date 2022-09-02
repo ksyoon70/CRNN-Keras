@@ -112,7 +112,8 @@ for filename in img_list:
 
 print(len(imgs), len(labels), max_length)
 
-characters = set(''.join(labels))
+#characters = set(''.join(labels))
+characters = sorted(list(set([char for label in labels for char in label])))
 #print(characters)
 
 char_to_num = layers.experimental.preprocessing.StringLookup(
@@ -206,8 +207,8 @@ loss = history.history['loss']
 val_loss = history.history['val_loss']
 epochs = range(1, len(loss) + 1)
 
-model_save_filename = "LSTM_ResNet_epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
-model.save(model_save_filename,)
+
+#model.save(model_save_filename,)
 
 
 # plt.plot(epochs, loss, 'bo', label ='Training acc')
@@ -229,6 +230,10 @@ plt.show()
 prediction_model = keras.models.Model(
   model.get_layer(name='image').input, model.get_layer(name='dense2').output
 )
+
+# Save model
+model_save_filename = "LSTM_ResNet_epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
+prediction_model.save(model_save_filename)
 
 def decode_batch_predictions(pred):
     input_len = np.ones(pred.shape[0]) * pred.shape[1]
