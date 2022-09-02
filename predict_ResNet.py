@@ -165,15 +165,19 @@ def decode_batch_predictions(pred):
     results = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)[0][0][
         :, :max_length
     ]
+    
+    decoded = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)
+    numpy_array = np.asarray(decoded)
+    log_probs  = numpy_array[1]
+    probabilities = np.exp(-log_probs)  # log probability로 반환하기 때문에 지수 함수로 바꿔줘야 한다.
     # Iterate over the results and get back the text
     output_text = []
-    accs = []
+    probs = probabilities.reshape((-1)).tolist()
     for ix, res in enumerate(results):
-        accs.append(pred[ix][0][res])
         ch = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
         output_text.append(ch)
         
-    return output_text,accs
+    return output_text,probs
 
 
 start_time = time.time() # strat time
@@ -195,7 +199,7 @@ for batch in validation_dataset:
         gt_text.append(res)
 
     preds = prediction_model.predict(batch_images)
-    pred_texts, accs = decode_batch_predictions(preds)
+    pred_texts, probs = decode_batch_predictions(preds)
     
     batch_size = batch_images.shape[0]
     
@@ -214,13 +218,14 @@ for batch in validation_dataset:
         batch_images_show = batch_images/255
         _, axes = plt.subplots(8, 4, figsize=(16, 12))
     
-        for img, text, acc, ax in zip(batch_images_show, pred_texts, accs, axes.flatten()):
+        for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
             img = img.numpy().squeeze()
             #img = img.T
             img = np.swapaxes(img,0,1)
     
             ax.imshow(img, cmap='gray')
-            text_str = '{}  {:.2f}%'.format(text,acc*100)
+            #인식 내용과 확률을 표시한다.
+            text_str = '{}  {:.2f}%'.format(text,prob*100)
             ax.set_title(text_str)
             ax.set_axis_off()
             
