@@ -5,7 +5,8 @@ Created on Mon Aug 29 19:12:57 2022
 @author: headway
 """
 #이 train 파일은 resnet50을 이용한 문자 인식하는 코드이다.
-import os
+from genericpath import isdir
+import os,shutil,sys
 import cv2
 from glob import glob
 import numpy as np
@@ -16,6 +17,7 @@ from tensorflow.keras import layers
 from sklearn.model_selection import train_test_split
 from datetime import datetime
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+from tensorflow.keras.optimizers import Adadelta
 
 from Model_ResNet import get_Model
 
@@ -26,14 +28,17 @@ font = font_manager.FontProperties(fname=font_path).get_name()
 rc('font', family=font)
 
 #---------------------------------------------
-class_str = 'char'
 img_width = 224
 img_height = 224
 batch_size = 32
 EPOCHS =  100
+OBJECT_DETECTION_API_PATH = 'C://SPB_Data//RealTimeObjectDetection-main'
+class_str = 'reg'  #ch 는 문자이디ㅏ.reg 는 지역문자이다.
+USE_ADADELTA = False  #Adadelta   사용 여부
 #---------------------------------------------
 
-
+if USE_ADADELTA:
+    EPOCHS = 800
 
 
 def makeGrey3DImage(param):
@@ -83,19 +88,47 @@ def encode_single_sample(img_path, label):
   return {'image': img, 'label': label}
 
 
-ROOT_DIR = os.path.dirname(__file__)
+ROOT_DIR = os.getcwd()
+sys.path.append(ROOT_DIR)
 
-src_dir = os.path.join(ROOT_DIR,'DB','train')
 
+
+#characters = set(''.join(labels))
+
+
+categorie_filename = None
+categorie_prefix = 'None'
+model_dir= None
+
+if class_str == 'ch':        #문자 검사
+    categorie_filename = 'chcrnn_categories.txt'
+    categorie_prefix = 'char'
+    model_dir = 'char_crnn_model'
+    
+elif class_str == 'reg':    #지역 검사
+    categorie_filename = 'regcrnn_categories.txt'
+    categorie_prefix = 'reg'
+    model_dir = 'reg_crnn_model' 
+else:
+    print('카테고리 정의가 없습니다. 종료')
+    sys.exit(0)
+
+test_dir = categorie_prefix + '_' + 'train'
+src_dir = os.path.join(ROOT_DIR,'DB', test_dir)
+
+if not os.path.exists(src_dir):
+    print('train 디렉토리가 존재하지 않습니다. {}'.format(src_dir))
+    sys.exit(0)
+    
 image_ext = ['jpg','JPG','png','PNG']
 
 img_list = [fn for fn in os.listdir(src_dir)
              if any(fn.endswith(ext) for ext in image_ext)]
 
-
 max_length = 0
 imgs = []
 labels = []
+
 
 
 
@@ -110,11 +143,14 @@ for filename in img_list:
   if len(label) > max_length:
     max_length = len(label)
 
-print(len(imgs), len(labels), max_length)
-
-#characters = set(''.join(labels))
+labels = [label.ljust(max_length,' ') for label in labels]
 characters = sorted(list(set([char for label in labels for char in label])))
-#print(characters)
+
+print(len(imgs), len(labels), max_length)    
+    
+with open(categorie_filename, "w") as f:
+    for categorie in characters :
+        f.write(categorie + '\n')
 
 char_to_num = layers.experimental.preprocessing.StringLookup(
     vocabulary=list(characters), num_oov_indices=0, mask_token=None
@@ -164,6 +200,7 @@ train_dataset = (
 
 
 validation_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+
 validation_dataset = (
     validation_dataset.map(
         encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
@@ -179,7 +216,11 @@ validation_dataset = (
 model = get_Model(training=True,categories_len=len(char_to_num.get_vocabulary()),img_shape=[img_width,img_height,3])
 
 # Optimizer
-opt = keras.optimizers.Adam()
+if USE_ADADELTA :
+    opt = Adadelta()
+else:
+    opt = keras.optimizers.Adam()
+
 # Compile the model and return
 model.compile(optimizer=opt)
 model.summary()
@@ -189,16 +230,34 @@ early_stopping = EarlyStopping(
     monitor='val_loss', patience=20, restore_best_weights=True
 )
 
-model_sub_path_str = get_model_path('LSTM',backbone='ResNet50')
+model_sub_path_str = get_model_path('LSTM',backbone=categorie_prefix)
 
-weight_filename = model_sub_path_str + "epoch_{epoch:03d}_val_loss_{val_loss:.3f}.h5"
+weight_filename =  model_sub_path_str + "epoch_{epoch:03d}_val_loss_{val_loss:.3f}.h5"
 checkpoint_callback = ModelCheckpoint(filepath=weight_filename , monitor="val_loss", save_freq='epoch',save_best_only=True, verbose=1, mode='auto' ,save_weights_only=True)
+
+class CustomHistory(tf.keras.callbacks.Callback):
+    def init(self, logs={}):
+        self.train_loss = []
+        self.val_loss = []
+        
+    def on_epoch_end(self, epoch, logs={}):
+        if len(self.val_loss):
+            if logs.get('val_loss') < min(self.val_loss) :
+                global weight_filename
+                weight_filename = model_sub_path_str + "epoch_{:03d}_val_loss_{:.3f}.h5".format(epoch+1,logs.get('val_loss'))
+        self.train_loss.append(logs.get('loss'))
+        self.val_loss.append(logs.get('val_loss'))
+        #print('\nepoch={}, 현재 최대 val_acc={}'.format(epoch,max(self.val_acc)))
+
+
+custom_hist = CustomHistory()
+custom_hist.init()
 
 history = model.fit(
     train_dataset,
     validation_data=validation_dataset,
     epochs=EPOCHS,
-    callbacks=[early_stopping,checkpoint_callback],
+    callbacks=[early_stopping,checkpoint_callback,custom_hist],
 )
 
 # acc = history.history['acc']
@@ -232,7 +291,7 @@ prediction_model = keras.models.Model(
 )
 
 # Save model
-model_save_filename = "LSTM_ResNet_epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
+model_save_filename = 'LSTM_ResNet_model' + '_' + categorie_prefix + '_' + "epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
 prediction_model.save(model_save_filename)
 
 def decode_batch_predictions(pred):
@@ -248,7 +307,7 @@ def decode_batch_predictions(pred):
         output_text.append(res)
     return output_text
 
-for batch in validation_dataset.take(2):
+for batch in validation_dataset.take(4):
     batch_images = batch['image']
     
     
@@ -267,7 +326,31 @@ for batch in validation_dataset.take(2):
         ax.set_title(text)
         ax.set_axis_off()
         
+#기존 폴더 아래 있는 출력 폴더를 지운다.
+model_path = os.path.join(OBJECT_DETECTION_API_PATH,model_dir)
+if not os.path.isdir(model_path) :
+    os.mkdir(model_path)
+    
+if os.path.exists(model_path):
+    model_list = os.listdir(model_path)
+    if len(model_list) :
+        for fn in model_list:
+            os.remove(os.path.join(model_path,fn))
         
+#결과 파일을 복사한다.
+#weight file 복사
+src_fn = weight_filename
+dst_fn = os.path.join(model_path,os.path.basename(src_fn))
+shutil.copy(src_fn,dst_fn)
+# 카테고리 파일 복사
+src_fn = categorie_filename
+dst_fn = os.path.join(model_path,src_fn)
+shutil.copy(src_fn,dst_fn)
+# 모델 파일 복사
+src_fn = model_save_filename
+dst_fn = os.path.join(model_path,src_fn)
+shutil.copy(src_fn,dst_fn)    
+    
 # img = makeGrey3DImage(img)
 # preview = encode_single_sample(imgs[0], labels[0])
 # plt.title(str(preview['label'].numpy()))

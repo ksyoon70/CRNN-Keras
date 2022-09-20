@@ -19,6 +19,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStoppi
 from keras.models import load_model
 import time 
 from Model_ResNet import get_Model, CTCLayer
+from CRNN_Model import *
+from label_tools import *
 
 # 한글 폰트 사용을 위해서 세팅
 from matplotlib import font_manager, rc
@@ -33,28 +35,16 @@ img_width = 224
 img_height = 224
 batch_size = 32
 EPOCHS =  100
-MODEL_PATH = 'LSTM_ResNet_epoch_20220912-224908_val_loss_0.2467.h5'
-#WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_crnn_20220901-123614_weights_epoch_025_val_loss_0.314.h5')
-WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_ResNet50_20220912-224234_weights_epoch_017_val_loss_0.185.h5')
-label_dir = os.path.join(ROOT_DIR,'DB','train') #여기는 변경하지 않는다.
-src_dir = os.path.join(ROOT_DIR,'DB','test')
+MODEL_PATH = 'LSTM_ResNet_Model_reg_epoch_20220914-182421_val_loss_0.3224.h5'
+WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_reg_20220914-182224_weights_epoch_007_val_loss_0.265.h5')
+#WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_ResNet50_20220912-224234_weights_epoch_017_val_loss_0.185.h5')
+label_dir = os.path.join(ROOT_DIR,'DB','reg_train') #여기는 변경하지 않는다.
+src_dir = os.path.join(ROOT_DIR,'DB','reg_train')
 SHOW_IMAGE = True  #이미지를 보여 줄지여부
 RECOG_THRESH_HOLD = 0.5
 #---------------------------------------------
 
-def get_model_path(model_type, backbone="resnet50"):
-    """Generating model path from model_type value for save/load model weights.
-    inputs:
-        model_type = "rpn", "faster_rcnn"
-        backbone = "vgg16", "mobilenet_v2"
-    outputs:
-        model_path = os model path, for example: "trained/rpn_vgg16_model_weights.h5"
-    """
-    main_path = "trained"
-    if not os.path.exists(main_path):
-        os.makedirs(main_path)
-    model_path = os.path.join(main_path, "{}_{}_{}_weights_".format(model_type, backbone,datetime.now().strftime("%Y%m%d-%H%M%S")))
-    return model_path
+
 
 def encode_single_sample(img_path, label):
   # 1. Read image
@@ -99,6 +89,9 @@ for filename in label_list:
 
 print('GT 검지 레이블 갯수: {} max label length {}'.format(len(gtlabels), max_length))
 
+
+
+
 for filename in img_list:
   imgs.append(os.path.join(src_dir,filename))
   
@@ -116,7 +109,7 @@ print('이미지갯수 : {}, 검지 레이블 갯수: {}'.format(len(imgs),len(l
 gtlabels = [label.ljust(max_length,' ') for label in gtlabels]
 characters = sorted(list(set([char for label in gtlabels for char in label])))
 #print(characters)
-
+crnn = CRNN_Model(MODEL_PATH,WEIGHT_PATH,characters=characters,max_length=max_length)
 char_to_num = layers.experimental.preprocessing.StringLookup(
     vocabulary=list(characters), num_oov_indices=0, mask_token=None
 )
@@ -189,59 +182,66 @@ fail_count = 0
 false_recog_count = 0  #오인식 카운트
 true_recog_count = 0
 
-#for batch in validation_dataset.take(3):
-for batch in validation_dataset:
-    batch_images = batch['image']
-    GT_labels = batch['label']
-    
-    gt_text = []
-    for gtlabel in GT_labels:
-        res = tf.strings.reduce_join(num_to_char(gtlabel)).numpy().decode('utf-8')
-        gt_text.append(res)
+for filePath in imgs:
+    imgRGB  = imread(filePath)
+    image_np = np.array(imgRGB)
+    image_np = np.swapaxes(image_np,0,1)
+    image_np = np.expand_dims(image_np,0)
+    pred_texts, probs = crnn.predict(image_np)
 
-    preds = prediction_model.predict(batch_images)
-    pred_texts, probs = decode_batch_predictions(preds)
+#for batch in validation_dataset.take(3):
+# for batch in validation_dataset:
+#     batch_images = batch['image']
+#     GT_labels = batch['label']
     
-    batch_size = batch_images.shape[0]
+#     gt_text = []
+#     for gtlabel in GT_labels:
+#         res = tf.strings.reduce_join(num_to_char(gtlabel)).numpy().decode('utf-8')
+#         gt_text.append(res)
+
+#     preds = prediction_model.predict(batch_images)
+#     pred_texts, probs = decode_batch_predictions(preds)
     
-    for ix, pred_text in enumerate(pred_texts):
-        if pred_text == '[UNK]' :
-            fail_count += 1
-        else :
-            if probs[ix] >= RECOG_THRESH_HOLD :
-                recog_count += 1
-                if pred_text == gt_text[ix] :
-                    true_recog_count += 1
-                else :
-                    false_recog_count += 1
-            else:
-                fail_count += 1
+#     batch_size = batch_images.shape[0]
     
-    #이미지를 보여 준다.
-    if SHOW_IMAGE :
-        batch_images_show = batch_images/255
-        _, axes = plt.subplots(8, 4, figsize=(16, 12))
+#     for ix, pred_text in enumerate(pred_texts):
+#         if pred_text == '[UNK]' :
+#             fail_count += 1
+#         else :
+#             if probs[ix] >= RECOG_THRESH_HOLD :
+#                 recog_count += 1
+#                 if pred_text == gt_text[ix] :
+#                     true_recog_count += 1
+#                 else :
+#                     false_recog_count += 1
+#             else:
+#                 fail_count += 1
     
-        for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
-            img = img.numpy().squeeze()
-            #img = img.T
-            img = np.swapaxes(img,0,1)
+#     #이미지를 보여 준다.
+#     if SHOW_IMAGE :
+#         batch_images_show = batch_images/255
+#         _, axes = plt.subplots(8, 4, figsize=(16, 12))
     
-            ax.imshow(img, cmap='gray')
-            #인식 내용과 확률을 표시한다.
-            text_str = '{}  {:.2f}%'.format(text,prob*100)
-            ax.set_title(text_str)
-            ax.set_axis_off()
+#         for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
+#             img = img.numpy().squeeze()
+#             #img = img.T
+#             img = np.swapaxes(img,0,1)
+    
+#             ax.imshow(img, cmap='gray')
+#             #인식 내용과 확률을 표시한다.
+#             text_str = '{}  {:.2f}%'.format(text,prob*100)
+#             ax.set_title(text_str)
+#             ax.set_axis_off()
             
-end_time = time.time()         
-print("수행시간: {:.2f}".format(end_time - start_time))
-print("총샘플수: {}".format(total_test_files))
-print("건당 수행시간 : {:.2f}".format((end_time - start_time)/total_test_files))             
-print('인식률: {:}/{}'.format(recog_count,total_test_files) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
-print('인식한것중 정인식: {:}/{}'.format(true_recog_count,recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
-print('인식한것중 오인식: {:}/{}'.format(false_recog_count,recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
-print('인식실패: {}/{}'.format(fail_count,total_test_files) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
-print('전체샘플중 정인식률: {}/{}'.format(true_recog_count,total_test_files) +'  ({:.2f})'.format(true_recog_count*100/total_test_files) + ' %')
+# end_time = time.time()         
+# print("수행시간: {:.2f}".format(end_time - start_time))
+# print("총샘플수: {}".format(total_test_files))
+# print("건당 수행시간 : {:.2f}".format((end_time - start_time)/total_test_files))             
+# print('인식률: {:}/{}'.format(recog_count,total_test_files) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
+# print('인식한것중 정인식: {:}/{}'.format(true_recog_count,recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
+# print('인식한것중 오인식: {:}/{}'.format(false_recog_count,recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
+# print('인식실패: {}/{}'.format(fail_count,total_test_files) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
+# print('전체샘플중 정인식률: {}/{}'.format(true_recog_count,total_test_files) +'  ({:.2f})'.format(true_recog_count*100/total_test_files) + ' %')
 
 
 

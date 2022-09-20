@@ -56,7 +56,8 @@ def get_Model(training,categories_len, img_shape):
     
     inner = base_model.get_layer(name='conv5_block1_2_relu').output     
     #inner = base_model.get_layer(name='conv4_block6_2_relu').output
-  
+    #inner = base_model.get_layer(name='conv3_block4_out').output  #전체 번호판을 인식시키기 위해서 출력을 뺌
+    
 
     # CNN to RNN
     lastFilterLayer = inner.shape[3]
