@@ -35,6 +35,7 @@ EPOCHS =  100
 OBJECT_DETECTION_API_PATH = 'C://SPB_Data//RealTimeObjectDetection-main'
 class_str = 'reg'  #ch 는 문자이디ㅏ.reg 는 지역문자이다.
 USE_ADADELTA = False  #Adadelta   사용 여부
+patience = 10    #업데이트 기다리는 기간
 #---------------------------------------------
 
 if USE_ADADELTA:
@@ -43,9 +44,6 @@ if USE_ADADELTA:
 
 def makeGrey3DImage(param):
 
-
-    
-    
     img = param['image']
     label = param['label']
     
@@ -227,7 +225,7 @@ model.summary()
 
 
 early_stopping = EarlyStopping(
-    monitor='val_loss', patience=20, restore_best_weights=True
+    monitor='val_loss', patience=patience, restore_best_weights=True
 )
 
 model_sub_path_str = get_model_path('LSTM',backbone=categorie_prefix)
@@ -300,30 +298,34 @@ def decode_batch_predictions(pred):
     results = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)[0][0][
         :, :max_length
     ]
+    decoded = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)
+    numpy_array = np.asarray(decoded)
+    log_probs  = numpy_array[1]
+    probabilities = np.exp(-log_probs)  # log probability로 반환하기 때문에 지수 함수로 바꿔줘야 한다.
     # Iterate over the results and get back the text
     output_text = []
-    for res in results:
-        res = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
-        output_text.append(res)
-    return output_text
+    probs = probabilities.reshape((-1)).tolist()
+    for ix, res in enumerate(results):
+        ch = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
+        output_text.append(ch)
+    return output_text,probs
 
 for batch in validation_dataset.take(4):
     batch_images = batch['image']
-    
-    
-
     preds = prediction_model.predict(batch_images)
-    pred_texts = decode_batch_predictions(preds)
+    pred_texts, probs = decode_batch_predictions(preds)
     batch_images_show = batch_images/255
     _, axes = plt.subplots(8, 4, figsize=(16, 12))
 
-    for img, text, ax in zip(batch_images_show, pred_texts, axes.flatten()):
+    for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
         img = img.numpy().squeeze()
         #img = img.T
         img = np.swapaxes(img,0,1)
 
         ax.imshow(img, cmap='gray')
-        ax.set_title(text)
+        #인식 내용과 확률을 표시한다.
+        text_str = '{}  {:.2f}%'.format(text,prob*100)
+        ax.set_title(text_str)
         ax.set_axis_off()
         
 #기존 폴더 아래 있는 출력 폴더를 지운다.
