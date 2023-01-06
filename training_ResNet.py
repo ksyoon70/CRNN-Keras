@@ -33,9 +33,10 @@ img_height = 224
 batch_size = 32
 EPOCHS =  100
 OBJECT_DETECTION_API_PATH = 'C://SPB_Data//RealTimeObjectDetection-main'
-class_str = 'reg'  #ch 는 문자이디ㅏ.reg 는 지역문자이다.
+class_strings = ['ch','reg']  #ch 는 문자이디ㅏ.reg 는 지역문자이다.
 USE_ADADELTA = False  #Adadelta   사용 여부
 patience = 10    #업데이트 기다리는 기간
+TEST_PAGE_NUM = 5 #테스트 페이지 보여주는 개수
 #---------------------------------------------
 
 if USE_ADADELTA:
@@ -98,272 +99,296 @@ categorie_filename = None
 categorie_prefix = 'None'
 model_dir= None
 
-if class_str == 'ch':        #문자 검사
-    categorie_filename = 'chcrnn_categories.txt'
-    categorie_prefix = 'char'
-    model_dir = 'char_crnn_model'
+for class_str in class_strings:
+
+    if class_str == 'ch':        #문자 검사
+        categorie_filename = 'chcrnn_categories.txt'
+        categorie_prefix = 'char'
+        model_dir = 'char_crnn_model'
+        
+    elif class_str == 'reg':    #지역 검사
+        categorie_filename = 'regcrnn_categories.txt'
+        categorie_prefix = 'reg'
+        model_dir = 'reg_crnn_model' 
+    else:
+        print('카테고리 정의가 없습니다. 종료')
+        sys.exit(0)
     
-elif class_str == 'reg':    #지역 검사
-    categorie_filename = 'regcrnn_categories.txt'
-    categorie_prefix = 'reg'
-    model_dir = 'reg_crnn_model' 
-else:
-    print('카테고리 정의가 없습니다. 종료')
-    sys.exit(0)
-
-test_dir = categorie_prefix + '_' + 'train'
-src_dir = os.path.join(ROOT_DIR,'DB', test_dir)
-
-if not os.path.exists(src_dir):
-    print('train 디렉토리가 존재하지 않습니다. {}'.format(src_dir))
-    sys.exit(0)
+    test_dir = categorie_prefix + '_' + 'train'
+    src_dir = os.path.join(ROOT_DIR,'DB', test_dir)
     
-image_ext = ['jpg','JPG','png','PNG']
-
-img_list = [fn for fn in os.listdir(src_dir)
-             if any(fn.endswith(ext) for ext in image_ext)]
-
-max_length = 0
-imgs = []
-labels = []
-
-
-
-
-for filename in img_list:
-  imgs.append(os.path.join(src_dir,filename))
-  
-  basename =os.path.basename(filename)
-  label = basename.split('_')[-1]
-  label = label[0:-4]
-  labels.append(label)
-
-  if len(label) > max_length:
-    max_length = len(label)
-
-labels = [label.ljust(max_length,' ') for label in labels]
-characters = sorted(list(set([char for label in labels for char in label])))
-
-print(len(imgs), len(labels), max_length)    
+    if not os.path.exists(src_dir):
+        print('train 디렉토리가 존재하지 않습니다. {}'.format(src_dir))
+        sys.exit(0)
+        
+    image_ext = ['jpg','JPG','png','PNG']
     
-with open(categorie_filename, "w") as f:
-    for categorie in characters :
-        f.write(categorie + '\n')
-
-char_to_num = layers.experimental.preprocessing.StringLookup(
-    vocabulary=list(characters), num_oov_indices=0, mask_token=None
-)
-
-num_to_char = layers.experimental.preprocessing.StringLookup(
-    vocabulary=char_to_num.get_vocabulary(), num_oov_indices=0, mask_token=None, invert=True
-)
-
-# print(labels[0])
-# encoded = char_to_num(tf.strings.unicode_split(labels[0], input_encoding='UTF-8'))
-# print(encoded)
-
-#한글자 한글자를 표시하기위한 테스트 코드
-# for index in range(20) :
-#     preview = encode_single_sample(imgs[index], labels[index])
-#     plt.title(str(preview['label'].numpy()))
-#     plt.imshow(preview['image'].numpy().squeeze())
-#     plt.show()
-
-x_train, x_val, y_train, y_val = train_test_split(imgs, labels, test_size=0.2, random_state=2021)
-
-
-print('train: x_tain: {} y_train: {}'.format(len(x_train), len(y_train)))
-print('test: x_val: {} y_val: {}'.format(len(x_val), len(y_val)))
-
-
-
-
-train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-train_dataset = (
-    train_dataset.map(
-        encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    img_list = [fn for fn in os.listdir(src_dir)
+                 if any(fn.endswith(ext) for ext in image_ext)]
+    
+    max_length = 0
+    imgs = []
+    labels = []
+    
+    
+    
+    
+    for filename in img_list:
+      imgs.append(os.path.join(src_dir,filename))
+      
+      basename =os.path.basename(filename)
+      label = basename.split('_')[-1]
+      label = label[0:-4]
+      labels.append(label)
+    
+      if len(label) > max_length:
+        max_length = len(label)
+    
+    labels = [label.ljust(max_length,' ') for label in labels]
+    characters = sorted(list(set([char for label in labels for char in label])))
+    
+    print(len(imgs), len(labels), max_length)    
+        
+    with open(categorie_filename, "w") as f:
+        for categorie in characters :
+            f.write(categorie + '\n')
+    
+    char_to_num = layers.experimental.preprocessing.StringLookup(
+        vocabulary=list(characters), num_oov_indices=0, mask_token=None
     )
-    .batch(batch_size)
-    .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-    .shuffle(len(x_train)*2)
-)
-
-
-# train_dataset = (
-#     train_dataset.map(
-#        lambda x : makeGrey3DImage(x)
-#     )
-
-# )
-
-
-validation_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
-
-validation_dataset = (
-    validation_dataset.map(
-        encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    
+    num_to_char = layers.experimental.preprocessing.StringLookup(
+        vocabulary=char_to_num.get_vocabulary(), num_oov_indices=0, mask_token=None, invert=True
     )
-    .batch(batch_size)
-    .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-    .shuffle(len(x_val)*2)
-)
-
-
-
-# Get the model
-model = get_Model(training=True,categories_len=len(char_to_num.get_vocabulary()),img_shape=[img_width,img_height,3])
-
-# Optimizer
-if USE_ADADELTA :
-    opt = Adadelta()
-else:
-    opt = keras.optimizers.Adam()
-
-# Compile the model and return
-model.compile(optimizer=opt)
-model.summary()
-
-
-early_stopping = EarlyStopping(
-    monitor='val_loss', patience=patience, restore_best_weights=True
-)
-
-model_sub_path_str = get_model_path('LSTM',backbone=categorie_prefix)
-
-weight_filename =  model_sub_path_str + "epoch_{epoch:03d}_val_loss_{val_loss:.3f}.h5"
-checkpoint_callback = ModelCheckpoint(filepath=weight_filename , monitor="val_loss", save_freq='epoch',save_best_only=True, verbose=1, mode='auto' ,save_weights_only=True)
-
-class CustomHistory(tf.keras.callbacks.Callback):
-    def init(self, logs={}):
-        self.train_loss = []
-        self.val_loss = []
-        
-    def on_epoch_end(self, epoch, logs={}):
-        if len(self.val_loss):
-            if logs.get('val_loss') < min(self.val_loss) :
-                global weight_filename
-                weight_filename = model_sub_path_str + "epoch_{:03d}_val_loss_{:.3f}.h5".format(epoch+1,logs.get('val_loss'))
-        self.train_loss.append(logs.get('loss'))
-        self.val_loss.append(logs.get('val_loss'))
-        #print('\nepoch={}, 현재 최대 val_acc={}'.format(epoch,max(self.val_acc)))
-
-
-custom_hist = CustomHistory()
-custom_hist.init()
-
-history = model.fit(
-    train_dataset,
-    validation_data=validation_dataset,
-    epochs=EPOCHS,
-    callbacks=[early_stopping,checkpoint_callback,custom_hist],
-)
-
-# acc = history.history['acc']
-# val_acc = history.history['val_acc']
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-epochs = range(1, len(loss) + 1)
-
-
-#model.save(model_save_filename,)
-
-
-# plt.plot(epochs, loss, 'bo', label ='Training acc')
-# plt.plot(epochs, val_loss, 'b', label ='Validation acc')
-
-# plt.title('Training and validation accuracy')
-# plt.legend()
-# plt.figure()
-
-plt.plot(epochs, loss, 'bo', label ='Training loss')
-plt.plot(epochs, val_loss, 'b', label ='Validation loss')
-
-plt.title('Training and validation loss')
-plt.legend()
-plt.figure()
-
-plt.show()
-
-prediction_model = keras.models.Model(
-  model.get_layer(name='image').input, model.get_layer(name='dense2').output
-)
-
-# Save model
-model_save_filename = 'LSTM_ResNet_model' + '_' + categorie_prefix + '_' + "epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
-prediction_model.save(model_save_filename)
-
-def decode_batch_predictions(pred):
-    input_len = np.ones(pred.shape[0]) * pred.shape[1]
-    # Use greedy search. For complex tasks, you can use beam search
-    results = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)[0][0][
-        :, :max_length
-    ]
-    decoded = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)
-    numpy_array = np.asarray(decoded)
-    log_probs  = numpy_array[1]
-    probabilities = np.exp(-log_probs)  # log probability로 반환하기 때문에 지수 함수로 바꿔줘야 한다.
-    # Iterate over the results and get back the text
-    output_text = []
-    probs = probabilities.reshape((-1)).tolist()
-    for ix, res in enumerate(results):
-        ch = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
-        output_text.append(ch)
-    return output_text,probs
-
-for batch in validation_dataset.take(4):
-    batch_images = batch['image']
-    preds = prediction_model.predict(batch_images)
-    pred_texts, probs = decode_batch_predictions(preds)
-    batch_images_show = batch_images/255
-    _, axes = plt.subplots(8, 4, figsize=(16, 12))
-
-    for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
-        img = img.numpy().squeeze()
-        #img = img.T
-        img = np.swapaxes(img,0,1)
-
-        ax.imshow(img, cmap='gray')
-        #인식 내용과 확률을 표시한다.
-        text_str = '{}  {:.2f}%'.format(text,prob*100)
-        ax.set_title(text_str)
-        ax.set_axis_off()
-        
-#기존 폴더 아래 있는 출력 폴더를 지운다.
-model_path = os.path.join(OBJECT_DETECTION_API_PATH,model_dir)
-if not os.path.isdir(model_path) :
-    os.mkdir(model_path)
     
-if os.path.exists(model_path):
-    model_list = os.listdir(model_path)
-    if len(model_list) :
-        for fn in model_list:
-            os.remove(os.path.join(model_path,fn))
-        
-#결과 파일을 복사한다.
-#weight file 복사
-src_fn = weight_filename
-dst_fn = os.path.join(model_path,os.path.basename(src_fn))
-shutil.copy(src_fn,dst_fn)
-# 카테고리 파일 복사
-src_fn = categorie_filename
-dst_fn = os.path.join(model_path,src_fn)
-shutil.copy(src_fn,dst_fn)
-# 모델 파일 복사
-src_fn = model_save_filename
-dst_fn = os.path.join(model_path,src_fn)
-shutil.copy(src_fn,dst_fn)    
+    # print(labels[0])
+    # encoded = char_to_num(tf.strings.unicode_split(labels[0], input_encoding='UTF-8'))
+    # print(encoded)
     
-# img = makeGrey3DImage(img)
-# preview = encode_single_sample(imgs[0], labels[0])
-# plt.title(str(preview['label'].numpy()))
-# plt.imshow(preview['image'].numpy().squeeze())
-
-# img_array = np.fromfile(os.path.join(src_dir,img_list[0]), np.uint8)
-# img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-
-# print('Filename : {}'.format(img_list[0]))
-# plt.title(label)
-# plt.imshow(img)
+    #한글자 한글자를 표시하기위한 테스트 코드
+    # for index in range(20) :
+    #     preview = encode_single_sample(imgs[index], labels[index])
+    #     plt.title(str(preview['label'].numpy()))
+    #     plt.imshow(preview['image'].numpy().squeeze())
+    #     plt.show()
+    
+    x_train, x_val, y_train, y_val = train_test_split(imgs, labels, test_size=0.2, random_state=2021)
+    
+    
+    print('train: x_tain: {} y_train: {}'.format(len(x_train), len(y_train)))
+    print('test: x_val: {} y_val: {}'.format(len(x_val), len(y_val)))
+    
+    IMG_SIZE = 225
+    def resize_and_rescale(image, label):
+        image = tf.cast(image, tf.float32)
+        image = tf.image.resize(image, [IMG_SIZE, IMG_SIZE])
+        image = (image / 255.0)
+        return image, label
+    
+    def augment(image_label, seed):
+         image, label = image_label
+         #image, label = resize_and_rescale(image, label)
+         image = tf.image.resize_with_crop_or_pad(image, IMG_SIZE + 6, IMG_SIZE + 6)
+         # Make a new seed
+         new_seed = tf.random.experimental.stateless_split(seed, num=1)[0, :]
+         # Random crop back to the original size
+         image = tf.image.stateless_random_crop(
+             image, size=[IMG_SIZE, IMG_SIZE, 3], seed=seed)
+         # Random brightness
+         image = tf.image.stateless_random_brightness(
+             image, max_delta=0.5, seed=new_seed)
+         image = tf.clip_by_value(image, 0, 1)
+         return image, label
+    
+    
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    train_dataset = (
+        train_dataset
+        #.map(augment, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        .map(
+            encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
+        .batch(batch_size)
+        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+        .shuffle(len(x_train)*2)
+    )
+    
+    
+    # train_dataset = (
+    #     train_dataset.map(
+    #        lambda x : makeGrey3DImage(x)
+    #     )
+    
+    # )
+    
+    
+    validation_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    
+    validation_dataset = (
+        validation_dataset.map(
+            encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
+        .batch(batch_size)
+        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+        .shuffle(len(x_val)*2)
+    )
+    
+    
+    
+    # Get the model
+    model = get_Model(training=True,categories_len=len(char_to_num.get_vocabulary()),img_shape=[img_width,img_height,3])
+    
+    # Optimizer
+    if USE_ADADELTA :
+        opt = Adadelta()
+    else:
+        opt = keras.optimizers.Adam()
+    
+    # Compile the model and return
+    model.compile(optimizer=opt)
+    model.summary()
+    
+    
+    early_stopping = EarlyStopping(
+        monitor='val_loss', patience=patience, restore_best_weights=True
+    )
+    
+    model_sub_path_str = get_model_path('LSTM',backbone=categorie_prefix)
+    
+    weight_filename =  model_sub_path_str + "epoch_{epoch:03d}_val_loss_{val_loss:.3f}.h5"
+    checkpoint_callback = ModelCheckpoint(filepath=weight_filename , monitor="val_loss", save_freq='epoch',save_best_only=True, verbose=1, mode='auto' ,save_weights_only=True)
+    
+    class CustomHistory(tf.keras.callbacks.Callback):
+        def init(self, logs={}):
+            self.train_loss = []
+            self.val_loss = []
+            
+        def on_epoch_end(self, epoch, logs={}):
+            if len(self.val_loss):
+                if logs.get('val_loss') < min(self.val_loss) :
+                    global weight_filename
+                    weight_filename = model_sub_path_str + "epoch_{:03d}_val_loss_{:.3f}.h5".format(epoch+1,logs.get('val_loss'))
+            self.train_loss.append(logs.get('loss'))
+            self.val_loss.append(logs.get('val_loss'))
+            #print('\nepoch={}, 현재 최대 val_acc={}'.format(epoch,max(self.val_acc)))
+    
+    
+    custom_hist = CustomHistory()
+    custom_hist.init()
+    
+    history = model.fit(
+        train_dataset,
+        validation_data=validation_dataset,
+        epochs=EPOCHS,
+        callbacks=[early_stopping,checkpoint_callback,custom_hist],
+    )
+    
+    # acc = history.history['acc']
+    # val_acc = history.history['val_acc']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(1, len(loss) + 1)
+    
+    
+    #model.save(model_save_filename,)
+    
+    
+    # plt.plot(epochs, loss, 'bo', label ='Training acc')
+    # plt.plot(epochs, val_loss, 'b', label ='Validation acc')
+    
+    # plt.title('Training and validation accuracy')
+    # plt.legend()
+    # plt.figure()
+    
+    plt.plot(epochs, loss, 'bo', label ='Training loss')
+    plt.plot(epochs, val_loss, 'b', label ='Validation loss')
+    
+    plt.title('Training and validation loss')
+    plt.legend()
+    plt.figure()
+    
+    plt.show()
+    
+    prediction_model = keras.models.Model(
+      model.get_layer(name='image').input, model.get_layer(name='dense2').output
+    )
+    
+    # Save model
+    model_save_filename = 'LSTM_ResNet_model' + '_' + categorie_prefix + '_' + "epoch_{}_val_loss_{:.4f}.h5".format(datetime.now().strftime("%Y%m%d-%H%M%S"),val_loss[-1])
+    prediction_model.save(model_save_filename)
+    
+    def decode_batch_predictions(pred):
+        input_len = np.ones(pred.shape[0]) * pred.shape[1]
+        # Use greedy search. For complex tasks, you can use beam search
+        results = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)[0][0][
+            :, :max_length
+        ]
+        decoded = keras.backend.ctc_decode(pred, input_length=input_len, greedy=True)
+        numpy_array = np.asarray(decoded)
+        log_probs  = numpy_array[1]
+        probabilities = np.exp(-log_probs)  # log probability로 반환하기 때문에 지수 함수로 바꿔줘야 한다.
+        # Iterate over the results and get back the text
+        output_text = []
+        probs = probabilities.reshape((-1)).tolist()
+        for ix, res in enumerate(results):
+            ch = tf.strings.reduce_join(num_to_char(res)).numpy().decode('utf-8')
+            output_text.append(ch)
+        return output_text,probs
+    
+    for batch in validation_dataset.take(TEST_PAGE_NUM):
+        batch_images = batch['image']
+        preds = prediction_model.predict(batch_images)
+        pred_texts, probs = decode_batch_predictions(preds)
+        batch_images_show = batch_images/255
+        _, axes = plt.subplots(8, 4, figsize=(16, 12))
+    
+        for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
+            img = img.numpy().squeeze()
+            #img = img.T
+            img = np.swapaxes(img,0,1)
+    
+            ax.imshow(img, cmap='gray')
+            #인식 내용과 확률을 표시한다.
+            text_str = '{}  {:.2f}%'.format(text,prob*100)
+            ax.set_title(text_str)
+            ax.set_axis_off()
+            
+    #기존 폴더 아래 있는 출력 폴더를 지운다.
+    model_path = os.path.join(OBJECT_DETECTION_API_PATH,model_dir)
+    if not os.path.isdir(model_path) :
+        os.mkdir(model_path)
+        
+    if os.path.exists(model_path):
+        model_list = os.listdir(model_path)
+        if len(model_list) :
+            for fn in model_list:
+                os.remove(os.path.join(model_path,fn))
+            
+    #결과 파일을 복사한다.
+    #weight file 복사
+    src_fn = weight_filename
+    dst_fn = os.path.join(model_path,os.path.basename(src_fn))
+    shutil.copy(src_fn,dst_fn)
+    # 카테고리 파일 복사
+    src_fn = categorie_filename
+    dst_fn = os.path.join(model_path,src_fn)
+    shutil.copy(src_fn,dst_fn)
+    # 모델 파일 복사
+    src_fn = model_save_filename
+    dst_fn = os.path.join(model_path,src_fn)
+    shutil.copy(src_fn,dst_fn)    
+        
+    # img = makeGrey3DImage(img)
+    # preview = encode_single_sample(imgs[0], labels[0])
+    # plt.title(str(preview['label'].numpy()))
+    # plt.imshow(preview['image'].numpy().squeeze())
+    
+    # img_array = np.fromfile(os.path.join(src_dir,img_list[0]), np.uint8)
+    # img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    
+    # print('Filename : {}'.format(img_list[0]))
+    # plt.title(label)
+    # plt.imshow(img)
 
 
 
