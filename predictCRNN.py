@@ -30,16 +30,21 @@ rc('font', family=font)
 
 #---------------------------------------------
 ROOT_DIR = os.path.dirname(__file__)
-class_str = 'char'
+class_str = 'reg'
 img_width = 224
 img_height = 224
 batch_size = 32
 EPOCHS =  100
-MODEL_PATH = 'LSTM_ResNet_Model_reg_epoch_20220914-182421_val_loss_0.3224.h5'
-WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','LSTM_reg_20220914-182224_weights_epoch_007_val_loss_0.265.h5')
-#WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_ResNet50_20220912-224234_weights_epoch_017_val_loss_0.185.h5')
-label_dir = os.path.join(ROOT_DIR,'DB','reg_train') #여기는 변경하지 않는다.
-src_dir = os.path.join(ROOT_DIR,'DB','reg_train')
+if class_str == 'char':
+    MODEL_PATH = os.path.join(ROOT_DIR,'bestmodel', 'LSTM_ResNet_model_char_epoch_20230212-214331_val_loss_0.0816.h5')
+    WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_char_20230212-212209_weights_epoch_005_val_loss_0.071.h5')
+    label_dir = os.path.join(ROOT_DIR,'DB','char_train') #여기는 변경하지 않는다.
+    src_dir = os.path.join(ROOT_DIR,'DB','char_train')
+elif class_str == 'reg':
+    MODEL_PATH = os.path.join(ROOT_DIR,'bestmodel', 'LSTM_ResNet_model_reg_epoch_20230212-214959_val_loss_0.0969.h5')
+    WEIGHT_PATH = os.path.join(ROOT_DIR,'trained','best','LSTM_reg_20230212-214336_weights_epoch_007_val_loss_0.080.h5')
+    label_dir = os.path.join(ROOT_DIR,'DB','reg_train') #여기는 변경하지 않는다.
+    src_dir = os.path.join(ROOT_DIR,'DB','reg_train')
 SHOW_IMAGE = True  #이미지를 보여 줄지여부
 RECOG_THRESH_HOLD = 0.5
 #---------------------------------------------
@@ -182,66 +187,66 @@ fail_count = 0
 false_recog_count = 0  #오인식 카운트
 true_recog_count = 0
 
-for filePath in imgs:
-    imgRGB  = imread(filePath)
-    image_np = np.array(imgRGB)
-    image_np = np.swapaxes(image_np,0,1)
-    image_np = np.expand_dims(image_np,0)
-    pred_texts, probs = crnn.predict(image_np)
+# for filePath in imgs:
+#     imgRGB  = imread(filePath)
+#     image_np = np.array(imgRGB)
+#     image_np = np.swapaxes(image_np,0,1)
+#     image_np = np.expand_dims(image_np,0)
+#     pred_texts, probs = crnn.predict(image_np)
 
-#for batch in validation_dataset.take(3):
-# for batch in validation_dataset:
-#     batch_images = batch['image']
-#     GT_labels = batch['label']
+for batch in validation_dataset.take(10):
+#for batch in validation_dataset:
+    batch_images = batch['image']
+    GT_labels = batch['label']
     
-#     gt_text = []
-#     for gtlabel in GT_labels:
-#         res = tf.strings.reduce_join(num_to_char(gtlabel)).numpy().decode('utf-8')
-#         gt_text.append(res)
+    gt_text = []
+    for gtlabel in GT_labels:
+        res = tf.strings.reduce_join(num_to_char(gtlabel)).numpy().decode('utf-8')
+        gt_text.append(res)
 
-#     preds = prediction_model.predict(batch_images)
-#     pred_texts, probs = decode_batch_predictions(preds)
+    preds = prediction_model.predict(batch_images)
+    pred_texts, probs = decode_batch_predictions(preds)
     
-#     batch_size = batch_images.shape[0]
+    batch_size = batch_images.shape[0]
     
-#     for ix, pred_text in enumerate(pred_texts):
-#         if pred_text == '[UNK]' :
-#             fail_count += 1
-#         else :
-#             if probs[ix] >= RECOG_THRESH_HOLD :
-#                 recog_count += 1
-#                 if pred_text == gt_text[ix] :
-#                     true_recog_count += 1
-#                 else :
-#                     false_recog_count += 1
-#             else:
-#                 fail_count += 1
+    for ix, pred_text in enumerate(pred_texts):
+        if pred_text == '[UNK]' :
+            fail_count += 1
+        else :
+            if probs[ix] >= RECOG_THRESH_HOLD :
+                recog_count += 1
+                if pred_text == gt_text[ix] :
+                    true_recog_count += 1
+                else :
+                    false_recog_count += 1
+            else:
+                fail_count += 1
     
-#     #이미지를 보여 준다.
-#     if SHOW_IMAGE :
-#         batch_images_show = batch_images/255
-#         _, axes = plt.subplots(8, 4, figsize=(16, 12))
+    #이미지를 보여 준다.
+    if SHOW_IMAGE :
+        batch_images_show = batch_images/255
+        _, axes = plt.subplots(8, 4, figsize=(16, 12))
     
-#         for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
-#             img = img.numpy().squeeze()
-#             #img = img.T
-#             img = np.swapaxes(img,0,1)
+        for img, text, prob, ax in zip(batch_images_show, pred_texts,probs, axes.flatten()):
+            img = img.numpy().squeeze()
+            #img = img.T
+            img = np.swapaxes(img,0,1)
     
-#             ax.imshow(img, cmap='gray')
-#             #인식 내용과 확률을 표시한다.
-#             text_str = '{}  {:.2f}%'.format(text,prob*100)
-#             ax.set_title(text_str)
-#             ax.set_axis_off()
+            ax.imshow(img, cmap='gray')
+            #인식 내용과 확률을 표시한다.
+            text_str = '{}  {:.2f}%'.format(text,prob*100)
+            ax.set_title(text_str)
+            ax.set_axis_off()
             
-# end_time = time.time()         
-# print("수행시간: {:.2f}".format(end_time - start_time))
-# print("총샘플수: {}".format(total_test_files))
-# print("건당 수행시간 : {:.2f}".format((end_time - start_time)/total_test_files))             
-# print('인식률: {:}/{}'.format(recog_count,total_test_files) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
-# print('인식한것중 정인식: {:}/{}'.format(true_recog_count,recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
-# print('인식한것중 오인식: {:}/{}'.format(false_recog_count,recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
-# print('인식실패: {}/{}'.format(fail_count,total_test_files) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
-# print('전체샘플중 정인식률: {}/{}'.format(true_recog_count,total_test_files) +'  ({:.2f})'.format(true_recog_count*100/total_test_files) + ' %')
+end_time = time.time()         
+print("수행시간: {:.2f}".format(end_time - start_time))
+print("총샘플수: {}".format(total_test_files))
+print("건당 수행시간 : {:.2f}".format((end_time - start_time)/total_test_files))             
+print('인식률: {:}/{}'.format(recog_count,total_test_files) +'  ({:.2f})'.format(recog_count*100/total_test_files) + ' %')
+print('인식한것중 정인식: {:}/{}'.format(true_recog_count,recog_count) +'  ({:.2f})'.format(true_recog_count*100/recog_count) + ' %')
+print('인식한것중 오인식: {:}/{}'.format(false_recog_count,recog_count) +'  ({:.2f})'.format(false_recog_count*100/recog_count) + ' %')
+print('인식실패: {}/{}'.format(fail_count,total_test_files) +'  ({:.2f})'.format(fail_count*100/total_test_files) + ' %')
+print('전체샘플중 정인식률: {}/{}'.format(true_recog_count,total_test_files) +'  ({:.2f})'.format(true_recog_count*100/total_test_files) + ' %')
 
 
 

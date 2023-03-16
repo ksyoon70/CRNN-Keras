@@ -20,6 +20,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStoppi
 from tensorflow.keras.optimizers import Adadelta
 
 from Model_ResNet import get_Model
+import math
+import random 
 
 # 한글 폰트 사용을 위해서 세팅
 from matplotlib import font_manager, rc
@@ -37,6 +39,8 @@ class_strings = ['ch','reg']  #ch 는 문자이디ㅏ.reg 는 지역문자이다
 USE_ADADELTA = False  #Adadelta   사용 여부
 patience = 10    #업데이트 기다리는 기간
 TEST_PAGE_NUM = 5 #테스트 페이지 보여주는 개수
+
+#영상이 늘어남에 따라 메모리 부족이 생김. 이에 .shuffle(len(x_val)*2)을 주석 처리함 23년1월29일
 #---------------------------------------------
 
 if USE_ADADELTA:
@@ -149,7 +153,7 @@ for class_str in class_strings:
     
     print(len(imgs), len(labels), max_length)    
         
-    with open(categorie_filename, "w") as f:
+    with open(categorie_filename, "w", encoding='utf8') as f:
         for categorie in characters :
             f.write(categorie + '\n')
     
@@ -179,6 +183,13 @@ for class_str in class_strings:
     print('test: x_val: {} y_val: {}'.format(len(x_val), len(y_val)))
     
     IMG_SIZE = 225
+    
+    upper = 45 * (math.pi/180.0) # degrees -> radian
+    lower = -45 * (math.pi/180.0)
+    
+    def rand_degree():
+        return random.uniform( lower , upper )
+    
     def resize_and_rescale(image, label):
         image = tf.cast(image, tf.float32)
         image = tf.image.resize(image, [IMG_SIZE, IMG_SIZE])
@@ -197,6 +208,7 @@ for class_str in class_strings:
          # Random brightness
          image = tf.image.stateless_random_brightness(
              image, max_delta=0.5, seed=new_seed)
+         image = tf.image.rotate( image , rand_degree() )
          image = tf.clip_by_value(image, 0, 1)
          return image, label
     
@@ -209,8 +221,9 @@ for class_str in class_strings:
             encode_single_sample, num_parallel_calls=tf.data.experimental.AUTOTUNE
         )
         .batch(batch_size)
-        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-        .shuffle(len(x_train)*2)
+        .prefetch(buffer_size=tf.data.experimental.AUTOTUNE) 
+        #.shuffle(len(x_train)*2)
+        .shuffle(10 * batch_size)
     )
     
     
@@ -230,7 +243,8 @@ for class_str in class_strings:
         )
         .batch(batch_size)
         .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-        .shuffle(len(x_val)*2)
+        #.shuffle(len(x_val)*2)
+        .shuffle(10 * batch_size)
     )
     
     
